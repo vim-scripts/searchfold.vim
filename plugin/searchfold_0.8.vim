@@ -2,23 +2,30 @@
 " General: {{{1
 " File:		searchfold.vim
 " Created:	2008 Jan 19
-" Last Change:	2009 Jan 22
-" Rev Days:     5
+" Last Change:	2010 Jun 01
+" Rev Days:     14
 " Author:	Andy Wokula <anwoku@yahoo.de>
-" Credits:	Antonio Colombo's f.vim (Vimscript #318, 10-05-2005)
+" Credits:	Antonio Colombo's f.vim (Vimscript #318, 2005 May 10)
 " Vim Version:	Vim 7.0
-" Version:	0.7
+" Version:	0.8
 
 " Description:
-"   Define mappings to fold away lines not matching the last search pattern
+"   Provide mappings to fold away lines not matching the last search pattern
 "   and to restore old fold settings afterwards.  Uses manual fold method,
 "   which allows for nested folds to hide or show more context.  Doesn't
-"   preserve user's manual folds.
+"   preserve the user's manual folds.
 
 " Usage:
-"   <Leader>z	fold away lines not matching the last search pattern
+"   <Leader>z	fold away lines not matching the last search pattern.
 "
-"   <Leader>Z	restore the previous fold settings (works in most cases)
+"		With [count], change the initial foldlevel to ([count] minus
+"		one).  The setting will be stored in g:searchfold_foldlevel
+"		and will be reused when [count] is omitted.
+"
+"   <Leader>iz	fold away lines that do match the last search pattern
+"		(inverse folding), also with [count].
+"
+"   <Leader>Z	restore the previous fold settings (works in most cases).
 "
 "		If something went wrong, this command can be repeated to
 "		revert the local fold options to the global defaults (better
@@ -26,8 +33,6 @@
 "		prints the executed command.  You can try "q:" and
 "		":s/</?/g" + Enter in the cmdline history to check the new
 "		settings ...
-"
-"   :call F()	only for backwards compatibility
 
 " Customization:
 "   :let g:searchfold_maxdepth = 7
@@ -45,13 +50,22 @@
 "		(boolean)
 "		If 1, execute "zv" (view cursor line) after <Leader>Z.
 "
-"   Note -- if a variable doesn't exist, its default value is assumed.
+"   :let g:searchfold_foldlevel = 0
+"		(number)
+"		'foldlevel' to set for <Leader>z and <Leader>iz.
+"
+"   :let g:searchfold_do_maps = 1
+"		(boolean)
+"		Whether to map the default keys or not.
 
 " Related:  Vimscript #158 (foldutil.vim) ... still to be checked out
 "	    http://www.noah.org/wiki/Vim#Folding
 "	    Vimscript #2302 (foldsearch.vim)
+"	    Vimscript #578 (allfold.tar.gz)
 "
 " Changes:
+"   v0.8    added inverse folding (<Leader>iz), g:searchfold_foldlevel,
+"	    count for <Leader>z, <Plug> mappings, disabled F(), (fixes)
 "   v0.7    b:searchfold fallback, s:foldtext check
 "   v0.6    (after v0.4) added customization vars (usestep, maxdepth, Zpost)
 "	    reverting global fold settings adds to cmd-history
@@ -72,6 +86,7 @@ if v:version<700
     finish
 endif
 
+" Customization: {{{1
 if !exists("g:searchfold_maxdepth")
     let g:searchfold_maxdepth = 7
 endif
@@ -80,6 +95,12 @@ if !exists("g:searchfold_usestep")
 endif
 if !exists("g:searchfold_postZ_do_zv")
     let g:searchfold_postZ_do_zv = 1
+endif
+if !exists("g:searchfold_foldlevel")
+    let g:searchfold_foldlevel = 0
+endif
+if !exists("g:searchfold_do_maps")
+    let g:searchfold_do_maps = 1
 endif
 
 " s:variables {{{1
@@ -135,12 +156,16 @@ func! s:FoldNested(from, to) " {{{1
     return 1
 endfunc
 
-func! s:CreateFolds() " {{{1
+func! s:CreateFolds(inverse) " {{{1
     " create search folds for the whole buffer based on last search pattern
     let sav_cur = getpos(".")
 
     let matches = []	" list of lnums
-    global//call add(matches, line("."))
+    if !a:inverse
+	global//call add(matches, line("."))
+    else
+	vglobal//call add(matches, line("."))
+    endif
 
     let nmatches = len(matches)
     if nmatches > 0
@@ -148,25 +173,28 @@ func! s:CreateFolds() " {{{1
 	let imax = nmatches - 1
 	let i = 0
 	while i < imax
-	    call s:FoldNested(matches[i]+1, matches[i+1]-1)
+	    if matches[i]+1 < matches[i+1]
+		call s:FoldNested(matches[i]+1, matches[i+1]-1)
+	    endif
 	    let i += 1
 	endwhile
 	call s:FoldNested(matches[imax]+1, line("$"))
     endif
 
+    let &l:foldlevel = g:searchfold_foldlevel
     call cursor(sav_cur[1:])
 
     return nmatches
 endfunc
 
-func! <sid>SearchFoldEnable() "{{{1
+func! <sid>SearchFoldEnable(inverse) "{{{1
     " return number of matches
     if !search("", "n")
 	" last search pattern not found, do nothing
 	return 0
     endif
-    if !exists("w:searchfold")
-	\ || w:searchfold.bufnr != bufnr("")
+    if (!exists("w:searchfold") || w:searchfold.bufnr != bufnr(""))
+	\ && &fdt != s:foldtext
 	" remember settings
 	let w:searchfold = { "bufnr": bufnr(""),
 	    \ "fdm": &fdm,
@@ -182,10 +210,12 @@ func! <sid>SearchFoldEnable() "{{{1
     setlocal foldenable
     setlocal foldminlines=0
     normal! zE
-    let b:searchfold = w:searchfold
-    return s:CreateFolds()
+    if exists("w:searchfold")
+	let b:searchfold = w:searchfold
+    endif
+    return s:CreateFolds(a:inverse)
 endfunc
-func! <sid>SearchFoldDisable() "{{{1
+func! SearchFoldDisable() "{{{1
     " turn off
     if exists("w:searchfold") && w:searchfold.bufnr == bufnr("")
 	" restore settings; var has the right settings if exists, but
@@ -212,13 +242,18 @@ func! <sid>SearchFoldDisable() "{{{1
 	endif
     else
 	let choice = input("Revert to global fold settings? (y/[n]/(s)how):")[0]
-	let cmd = 'setlocal fdm< fdl< fdt< fen< fml<'
+	let setargs = 'fdm< fdl< fdt< fen< fml<'
 	if choice == "y"
+	    let cmd = 'setlocal '. setargs
 	    echo ':'. cmd
 	    exec cmd
-	    call histadd(':', cmd)
+	    " call histadd(':', cmd)
 	elseif choice == "s"
-	    let cmd = tr(cmd, "<","?")
+	    let setargs = tr(setargs, "<","?")
+	    let cmd = 'setglobal '. setargs
+	    echo ':'. cmd
+	    exec cmd
+	    let cmd = 'setlocal '. setargs
 	    echo ':'. cmd
 	    exec cmd
 	endif
@@ -229,22 +264,29 @@ func! <sid>SearchFoldDisable() "{{{1
     endif
 endfunc
 
-func! F() range "{{{1
-    " range arg: ignore range given by accident
-    let pat = input("Which regexp? ", @/)
-    if pat == ""
-	if exists("w:searchfold")
-	    call <sid>SearchFoldDisable()
-	endif
-	return
-    endif
-    let @/ = pat
-    call histadd("search", @/)
-    call <sid>SF1()
-endfunc
+"" func! F() range "{{{1
+"     " commented out 2010 Jun 01
+"     " range arg: ignore range given by accident
+"     let pat = input("Which regexp? ", @/)
+"     if pat == ""
+" 	if exists("w:searchfold")
+" 	    call SearchFoldDisable()
+" 	endif
+" 	return
+"     endif
+"     let @/ = pat
+"     call histadd("search", @/)
+"     call SearchFold()
+" endfunc
 
-func! <sid>SF1() "{{{1
-    let nmatches = <sid>SearchFoldEnable()
+" :call F()	only for backwards compatibility
+
+func! SearchFold(...) "{{{1
+    let inverse = a:0>=1 && a:1
+    if v:count >= 1
+	let g:searchfold_foldlevel = v:count - 1
+    endif
+    let nmatches = <sid>SearchFoldEnable(inverse)
     " at most one match per line counted
     if nmatches == 0
 	echohl ErrorMsg
@@ -262,8 +304,15 @@ func! <sid>SF1() "{{{1
 endfunc
 
 " Mappings: {{{1
-nn <silent><Leader>z :<c-u>call<sid>SF1()<cr>
-nn <silent><Leader>Z :<c-u>call<sid>SearchFoldDisable()<cr>
+nn <silent> <Plug>SearchFoldNormal   :<C-U>call SearchFold(0)<CR>
+nn <silent> <Plug>SearchFoldInverse  :<C-U>call SearchFold(1)<CR>
+nn <silent> <Plug>SearchFoldDisable  :<C-U>call SearchFoldDisable()<CR>
 
-" Modeline: " {{{1
-" vim:fdm=marker ts=8 sts=4 sw=4 noet:
+if g:searchfold_do_maps
+    nmap <Leader>z   <Plug>SearchFoldNormal
+    nmap <Leader>iz  <Plug>SearchFoldInverse
+    nmap <Leader>Z   <Plug>SearchFoldDisable
+endif
+
+" Modeline: {{{1
+" vim:set fdm=marker ts=8 sts=4 sw=4 noet:
