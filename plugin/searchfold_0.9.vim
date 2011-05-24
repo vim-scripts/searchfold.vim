@@ -2,12 +2,12 @@
 " General: {{{1
 " File:		searchfold.vim
 " Created:	2008 Jan 19
-" Last Change:	2010 Jun 01
-" Rev Days:     14
+" Last Change:	2011 May 24
+" Rev Days:     18
 " Author:	Andy Wokula <anwoku@yahoo.de>
 " Credits:	Antonio Colombo's f.vim (Vimscript #318, 2005 May 10)
 " Vim Version:	Vim 7.0
-" Version:	0.8
+" Version:	0.9
 
 " Description:
 "   Provide mappings to fold away lines not matching the last search pattern
@@ -25,14 +25,11 @@
 "   <Leader>iz	fold away lines that do match the last search pattern
 "		(inverse folding), also with [count].
 "
-"   <Leader>Z	restore the previous fold settings (works in most cases).
+"   <Leader>Z	restore the previous fold settings.
 "
-"		If something went wrong, this command can be repeated to
-"		revert the local fold options to the global defaults (better
-"		than nothing!).  Asks the user what to do, and after "y"
-"		prints the executed command.  You can try "q:" and
-"		":s/</?/g" + Enter in the cmdline history to check the new
-"		settings ...
+"		Minor Extra: If already in restored state, show a dialog to
+"		revert all involved local fold options to the global
+"		defaults.  The "(s)how" just prints info.
 
 " Customization:
 "   :let g:searchfold_maxdepth = 7
@@ -41,10 +38,10 @@
 "
 "   :let g:searchfold_usestep = 1
 "		(boolean)
-"		Per default, each "zr" (after "\z") unfolds 1 more line
-"		above the cursor, but several (= step) lines below the
-"		cursor.  Set this var to 1 to also get step lines above the
-"		cursor.  This applies for next "\z".
+"		Controls how folds are organized: If 1 (default), each "zr"
+"		(after "\z") unfolds the same amount of lines above and
+"		below a match.  If 0, only one more line is unfolded above a
+"		match.  This applies for next "\z" or "\iz".
 "
 "   :let g:searchfold_postZ_do_zv = 1
 "		(boolean)
@@ -52,11 +49,13 @@
 "
 "   :let g:searchfold_foldlevel = 0
 "		(number)
-"		'foldlevel' to set for <Leader>z and <Leader>iz.
+"		Initial 'foldlevel' to set for <Leader>z and <Leader>iz.
 "
 "   :let g:searchfold_do_maps = 1
 "		(boolean)
 "		Whether to map the default keys or not.
+"
+" Hint: For boolean options, 1 actually means any non-zero number.
 
 " Related:  Vimscript #158 (foldutil.vim) ... still to be checked out
 "	    http://www.noah.org/wiki/Vim#Folding
@@ -64,6 +63,7 @@
 "	    Vimscript #578 (allfold.tar.gz)
 "
 " Changes:
+"   v0.9    redraw removed, plug map renamed, comments (usestep ...)
 "   v0.8    added inverse folding (<Leader>iz), g:searchfold_foldlevel,
 "	    count for <Leader>z, <Plug> mappings, disabled F(), (fixes)
 "   v0.7    b:searchfold fallback, s:foldtext check
@@ -215,7 +215,7 @@ func! <sid>SearchFoldEnable(inverse) "{{{1
     endif
     return s:CreateFolds(a:inverse)
 endfunc
-func! SearchFoldDisable() "{{{1
+func! SearchFoldRestore() "{{{1
     " turn off
     if exists("w:searchfold") && w:searchfold.bufnr == bufnr("")
 	" restore settings; var has the right settings if exists, but
@@ -270,7 +270,7 @@ endfunc
 "     let pat = input("Which regexp? ", @/)
 "     if pat == ""
 " 	if exists("w:searchfold")
-" 	    call SearchFoldDisable()
+" 	    call SearchFoldRestore()
 " 	endif
 " 	return
 "     endif
@@ -299,19 +299,20 @@ func! SearchFold(...) "{{{1
     else
 	echo "Searchfold:" nmatches "lines found"
     endif
-    let &hls = &hls
-    redraw
+    " 2011 Feb 06 commented out:
+    " let &hls = &hls
+    " redraw
 endfunc
 
 " Mappings: {{{1
 nn <silent> <Plug>SearchFoldNormal   :<C-U>call SearchFold(0)<CR>
 nn <silent> <Plug>SearchFoldInverse  :<C-U>call SearchFold(1)<CR>
-nn <silent> <Plug>SearchFoldDisable  :<C-U>call SearchFoldDisable()<CR>
+nn <silent> <Plug>SearchFoldRestore  :<C-U>call SearchFoldRestore()<CR>
 
 if g:searchfold_do_maps
     nmap <Leader>z   <Plug>SearchFoldNormal
     nmap <Leader>iz  <Plug>SearchFoldInverse
-    nmap <Leader>Z   <Plug>SearchFoldDisable
+    nmap <Leader>Z   <Plug>SearchFoldRestore
 endif
 
 " Modeline: {{{1
