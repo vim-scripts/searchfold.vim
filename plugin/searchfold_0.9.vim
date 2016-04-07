@@ -158,27 +158,27 @@ endfunc
 
 func! s:CreateFolds_find_add(matches, inverse)
     if a:inverse
-        let cur=line(".")
-        normal! gN
-        execute "normal! \<esc>"
-        silent! normal! `<
-        let start=line(".")
-        silent! normal! `>
-        let end=line(".")
-
-        if cur==start || cur > end
-            call add(a:matches, end+1)
-        endif
-    else
-        let cur=line(".")
-        normal! gN
+        let cur = line(".")
+        normal! gn
         execute "normal! \<esc>"
         normal! `<
-        let start=line(".")
+        let start = line(".")
         normal! `>
-        let end=line(".")
+        let end = line(".")
 
-        if cur==start || cur > end
+        if cur < start || cur > end
+            call add(a:matches, cur)
+        endif
+    else
+        let cur = line(".")
+        normal! gn
+        execute "normal! \<esc>"
+        normal! `<
+        let start = line(".")
+        normal! `>
+        let end = line(".")
+
+        if cur == start || cur > end
             for i in range(start, end)
                 call add(a:matches, i)
             endfor
