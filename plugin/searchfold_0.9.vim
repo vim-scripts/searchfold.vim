@@ -156,16 +156,63 @@ func! s:FoldNested(from, to) " {{{1
     return 1
 endfunc
 
+func! s:CreateFolds_find_add(matches, inverse)
+    if a:inverse
+        let cur=line(".")
+        normal! gN
+        execute "normal! \<esc>"
+        normal! `<
+        let start=line(".")
+        normal! `>
+        let end=line(".")
+
+        if cur==start || cur > end
+            call add(a:matches, end+1)
+        endif
+    else
+        let cur=line(".")
+        normal! gN
+        execute "normal! \<esc>"
+        normal! `<
+        let start=line(".")
+        normal! `>
+        let end=line(".")
+
+        if cur==start || cur > end
+            for i in range(start, end)
+                call add(a:matches, i)
+            endfor
+        endif
+    endif
+endfunc
+func! s:CreateFolds_find(matches, inverse)
+    if !a:inverse
+        global//call s:CreateFolds_find_add(a:matches, a:inverse)
+    else
+        vglobal//call s:CreateFolds_find_add(a:matches, a:inverse)
+    endif
+
+    let nmatches = len(a:matches)
+    echo a:matches
+    let prev=-1
+    let prev_n=-1
+    for i in range(nmatches)
+        if a:matches[i]==prev
+            let prev_n=prev_n+1
+            let a:matches[i]=prev_n
+        else
+            let prev=a:matches[i]
+            let prev_n=a:matches[i]
+        endif
+    endfor
+    echo a:matches
+endfunc
 func! s:CreateFolds(inverse) " {{{1
     " create search folds for the whole buffer based on last search pattern
     let sav_cur = getpos(".")
 
     let matches = []	" list of lnums
-    if !a:inverse
-	global//call add(matches, line("."))
-    else
-	vglobal//call add(matches, line("."))
-    endif
+    call s:CreateFolds_find(matches, a:inverse)
 
     let nmatches = len(matches)
     if nmatches > 0
