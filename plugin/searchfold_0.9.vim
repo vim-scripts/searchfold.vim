@@ -193,7 +193,6 @@ func! s:CreateFolds_find(matches, inverse)
     endif
 
     let nmatches = len(a:matches)
-    echo a:matches
     let prev=-1
     let prev_n=-1
     for i in range(nmatches)
@@ -205,7 +204,6 @@ func! s:CreateFolds_find(matches, inverse)
             let prev_n=a:matches[i]
         endif
     endfor
-    echo a:matches
 endfunc
 func! s:CreateFolds(inverse) " {{{1
     " create search folds for the whole buffer based on last search pattern
