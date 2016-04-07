@@ -161,9 +161,9 @@ func! s:CreateFolds_find_add(matches, inverse)
         let cur=line(".")
         normal! gN
         execute "normal! \<esc>"
-        normal! `<
+        silent! normal! `<
         let start=line(".")
-        normal! `>
+        silent! normal! `>
         let end=line(".")
 
         if cur==start || cur > end
